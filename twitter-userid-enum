@@ -1,0 +1,67 @@
+#!/usr/bin/env ruby
+# encoding: UTF-8
+#
+# Twitter User/ID Enumerator 
+# Scripted by Derek Callaway [ decal (AT) sdf {D0T} org ]
+# Tue Jun 28 04:02:49 EDT 2016
+# 
+
+require 'net/http'
+require 'uri'
+
+include Net
+
+STARTING_ID = 316511909
+
+class TwitterEnum
+  attr_reader :auri, :http, :requ, :resp, :name, :nmid
+
+  def initialize(anid = 0)
+    raise Exception.new("Invalid anid value: #{anid}!") if anid <= 0
+
+    begin
+      @auri, @http, @requ, @resp, @name, @nmid = nil, nil, nil, nil, nil, nil
+      @auri = URI.parse("https://twitter.com/intent/user?user_id=#{anid}")
+      @http = HTTP.new(@auri.host, @auri.port)
+      @http.use_ssl = true
+      @requ = HTTP::Get.new(@auri.request_uri)
+      @resp = http.request(@requ)
+      @name, @nmid = nil, nil
+      lines = @resp.body.split($/)
+    rescue Exception => e
+      continue
+    end
+
+    lines.each do |l|
+      l.strip!
+
+      if l =~ %r{<title>([^\(]+)[ ][\(]([^\)]+)[\)][ a-zA-Z]+</title>}i
+        $thrs.each do |t| 
+          t.join
+        end
+
+        begin
+          @name, @nmid = $1, $2
+
+          @name.strip!
+          @nmid.strip!
+
+          print("#{@name} #{@nmid} #{anid}\n")
+        rescue Exception => e
+          print("#{excd} #{anid}\n")
+
+          next
+        end
+      end
+    end 
+  end
+end
+
+$thrs, twid = [], STARTING_ID
+
+loop do
+  $thrs << [ Thread.new { |t| t = TwitterEnum.new(twid -= 1) } ]
+  $thrs.each { |t| t.join } if $thrs.size >= 16
+end
+
+exit 0
