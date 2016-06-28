@@ -1,22 +1,29 @@
 #!/usr/bin/env ruby
 # encoding: UTF-8
 #
-# Twitter User/ID Enumerator 
+# Multi-Threaded Twitter User ID Enumerator 
 # Scripted by Derek Callaway [ decal (AT) sdf {D0T} org ]
-# Tue Jun 28 04:02:49 EDT 2016
-# 
+# Tue Jun 28 07:53:23 EDT 2016
+#
+# https://github.com/decal/twitter-userid-enum 
+#
 
 require 'net/http'
 require 'uri'
+require 'thread'
 
 include Net
 
-STARTING_ID = 316511909
+# STARTING_ID = 783214    # @twitter
+# STARTING_ID = 566231363 # @decalresponds
+STARTING_ID = 30_000_000 
 
 class TwitterEnum
   attr_reader :auri, :http, :requ, :resp, :name, :nmid
 
-  def initialize(anid = 0)
+  @@mutex = Mutex.new
+
+  public def initialize(anid = 0)
     raise Exception.new("Invalid anid value: #{anid}!") if anid <= 0
 
     begin
@@ -26,16 +33,15 @@ class TwitterEnum
       @http.use_ssl = true
       @requ = HTTP::Get.new(@auri.request_uri)
       @resp = http.request(@requ)
-      @name, @nmid = nil, nil
-      lines = @resp.body.split($/)
+      linez = @resp.body.split($/)
     rescue Exception => e
       continue
     end
 
-    lines.each do |l|
+    linez.each do |l|
       l.strip!
 
-      if l =~ %r{<title>([^\(]+)[ ][\(]([^\)]+)[\)][ a-zA-Z]+</title>}i
+      if l =~ %r{<title>([^\(]+)[ ][\(]([^\)]+)[\)][ a-z]+</title>}i
         $thrs.each do |t| 
           t.join
         end
@@ -46,9 +52,13 @@ class TwitterEnum
           @name.strip!
           @nmid.strip!
 
-          print("#{@name} #{@nmid} #{anid}\n")
+          @@mutex.synchronize do
+            STDOUT.puts("#{@name} #{@nmid} #{anid}")
+          end
         rescue Exception => e
-          print("#{excd} #{anid}\n")
+          @@mutex.synchronize do
+            STDERR.puts("#{excd} #{anid}")
+          end
 
           next
         end
@@ -57,11 +67,12 @@ class TwitterEnum
   end
 end
 
-$thrs, twid = [], STARTING_ID
+$thrs = [] 
+twid = (ARGV.size.zero? or ARGV.first.to_i.zero?) ? STARTING_ID : ARGV.first.to_i
 
 loop do
   $thrs << [ Thread.new { |t| t = TwitterEnum.new(twid -= 1) } ]
-  $thrs.each { |t| t.join } if $thrs.size >= 16
+  $thrs.each { |t| t.join } if $thrs.size >= 0XF
 end
 
 exit 0
